@@ -1,0 +1,82 @@
+#define XorgCustomVersion		"DRI Ex"
+
+#define ProjectRoot			/opt/xorg
+#define UserLibDir			/opt/xorg/lib
+#define NothingOutsideProjectRoot	YES
+
+/* My modified mesa and drm versions.  *//*
+#define DRMSrcDir			/usr/src/dri-ex/drm
+#define MesaSrcDir 			/usr/src/dri-ex/mesa
+*/
+
+#define DefaultGcc2i386Opt		-O2
+#define LibraryCDebugFlags		-O2
+#define GccWarningOptions		-Wall -Wpointer-arith -Wstrict-prototypes\
+					-Wmissing-prototypes -Wmissing-declarations\
+					-Wredundant-decls -Wnested-externs -Wundef
+#define DefaultCCOptions		-ansi -pedantic GccWarningOptions -pipe -g
+
+#define XF86CardDrivers			ati glint i810 mga savage sis tdfx vga via
+#define DriDrivers			ffb gamma i810 i915 mach64 mga r128 r200 \
+					radeon savage sis tdfx unichrome via
+#define XInputDrivers			mouse keyboard
+
+#define BuildXF86DRI			YES
+#define BuildGLXLibrary			YES
+#define BuildXDriInfo			NO
+
+#define XdmxServer			NO
+#define XnestServer			NO
+#define XVirtualFramebufferServer	NO
+
+#define NormalLibGlx			NO
+/* Optionally turn these on for debugging */
+/* #define GlxBuiltInTdfx		YES */
+/* #define GlxBuiltInI810		YES */
+/* #define GlxBuiltInMga		YES */
+/* #define GlxBuiltInR128		YES */
+/* #define GlxBuiltInRadeon		YES */
+#define DoLoadableServer		YES
+
+
+/*
+ * Do not change anything below or build may fail.
+ */
+
+#define BuildServersOnly		YES
+#define BuildXFree86ConfigTools		NO
+#define BuildXprint			NO
+#define XprtServer			NO
+
+#define BuildFonts			NO
+#define SharedLibFont			NO
+
+#define BuildLibraries			NO
+#define BuildLibrariesForXServers	NO
+#define BuildLibrariesForConfigTools	NO
+
+#define BuildXdmcpLib			YES
+#define BuildXftLib			NO
+#define BuildXft1Lib			NO
+
+#define BuildXF86VidModeLibrary		NO
+#define BuildXvLibrary			NO
+#define BuildXvMCLibrary		NO
+#define BuildXInputLib			NO
+#define BuildFontconfigLibrary		NO
+#define BuildGLwLibrary			NO
+#define BuildGLULibrary			NO
+#define BuildRenderLibrary		NO
+#define BuildXcursorLibrary		NO
+
+#define BuildXIE			NO
+#define BuildPexExt			NO
+
+#define XF86AFB				NO
+#if DoLoadableServer
+#	undef XF1Bpp
+#	undef XF4Bpp
+
+#	define XF1Bpp			NO
+#	define XF4Bpp			NO
+#endif
