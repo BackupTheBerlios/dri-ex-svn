@@ -103,7 +103,6 @@ void r200GetLock( r200ContextPtr rmesa, GLuint flags )
       else
          r200SetCliprects( rmesa, GL_FRONT_LEFT );
       r200UpdateViewportOffset( rmesa->glCtx );
-      r200EmitState( rmesa );
       rmesa->lastStamp = dPriv->lastStamp;
    }
 
