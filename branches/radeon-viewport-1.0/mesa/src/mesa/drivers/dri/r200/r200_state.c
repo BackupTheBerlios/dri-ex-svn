@@ -548,7 +548,8 @@ static GLboolean intersect_rect( drm_clip_rect_t *out,
 
 void r200RecalcScissorRects( r200ContextPtr rmesa )
 {
-   drm_clip_rect_t *out;
+   GLint xoffset, yoffset;
+   drm_clip_rect_t *out, *out3d;
    int i;
 
    /* Grow cliprect store?
@@ -561,26 +562,43 @@ void r200RecalcScissorRects( r200ContextPtr rmesa )
 
       if (rmesa->state.scissor.pClipRects)
 	 FREE(rmesa->state.scissor.pClipRects);
+      if (rmesa->state.scissor.pClipRects3D)
+	 FREE(rmesa->state.scissor.pClipRects3D);
 
       rmesa->state.scissor.pClipRects = 
 	 MALLOC( rmesa->state.scissor.numAllocedClipRects * 
 		 sizeof(drm_clip_rect_t) );
+      rmesa->state.scissor.pClipRects3D = 
+	 MALLOC( rmesa->state.scissor.numAllocedClipRects * 
+		 sizeof(drm_clip_rect_t) );
 
-      if ( rmesa->state.scissor.pClipRects == NULL ) {
+      if ( rmesa->state.scissor.pClipRects == NULL
+           || rmesa->state.scissor.pClipRects3D == NULL ) {
 	 rmesa->state.scissor.numAllocedClipRects = 0;
 	 return;
       }
    }
    
    out = rmesa->state.scissor.pClipRects;
+   out3d = rmesa->state.scissor.pClipRects3D;
    rmesa->state.scissor.numClipRects = 0;
+
+   xoffset = R200_CLIP3D_XOFFSET( rmesa );
+   yoffset = R200_CLIP3D_YOFFSET( rmesa );
 
    for ( i = 0 ; i < rmesa->numClipRects ;  i++ ) {
       if ( intersect_rect( out, 
 			   &rmesa->pClipRects[i], 
 			   &rmesa->state.scissor.rect ) ) {
 	 rmesa->state.scissor.numClipRects++;
-	 out++;
+
+         out3d->x1 = out->x1 + xoffset;
+         out3d->x2 = out->x2 + xoffset;
+         out3d->y1 = out->y1 + yoffset;
+         out3d->y2 = out->y2 + yoffset;
+         
+	 ++out;
+	 ++out3d;
       }
    }
 }
@@ -1604,16 +1622,31 @@ void r200UpdateWindow( GLcontext *ctx )
 {
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    __DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
-   GLfloat xoffset = (GLfloat)dPriv->x;
-   GLfloat yoffset = (GLfloat)dPriv->y + dPriv->h;
    const GLfloat *v = ctx->Viewport._WindowMap.m;
+   GLint xoffset, yoffset;
 
    GLfloat sx = v[MAT_SX];
-   GLfloat tx = v[MAT_TX] + xoffset + SUBPIXEL_X;
+   GLfloat tx = SUBPIXEL_X + v[MAT_TX];
    GLfloat sy = - v[MAT_SY];
-   GLfloat ty = (- v[MAT_TY]) + yoffset + SUBPIXEL_Y;
+   GLfloat ty = SUBPIXEL_Y - v[MAT_TY];
    GLfloat sz = v[MAT_SZ] * rmesa->state.depth.scale;
    GLfloat tz = v[MAT_TZ] * rmesa->state.depth.scale;
+
+   /* Color offset may not point to the location left of or above
+    * current color buffer. In other situations it points to the top
+    * left corner of window's viewport, and will compensate for
+    * positive offests.
+    */
+   xoffset = dPriv->x + ctx->Viewport.X;
+   yoffset = dPriv->y + dPriv->h - ctx->Viewport.X - ctx->Viewport.Height;
+   if ( xoffset < 0.0 )
+      tx += (GLfloat) dPriv->x;
+   else
+      tx -= (GLfloat) ctx->Viewport.X - R200_DRAW_XBIAS( rmesa );
+   if ( yoffset < 0.0 )
+      ty += (GLfloat) (dPriv->y + dPriv->h);
+   else
+      ty += (GLfloat) ctx->Viewport.Height;
 
    R200_FIREVERTICES( rmesa );
    R200_STATECHANGE( rmesa, vpt );
@@ -1624,6 +1657,9 @@ void r200UpdateWindow( GLcontext *ctx )
    rmesa->hw.vpt.cmd[VPT_SE_VPORT_YOFFSET] = *(GLuint *)&ty;
    rmesa->hw.vpt.cmd[VPT_SE_VPORT_ZSCALE]  = *(GLuint *)&sz;
    rmesa->hw.vpt.cmd[VPT_SE_VPORT_ZOFFSET] = *(GLuint *)&tz;
+
+   r200RecalcAndUpdateColor( rmesa );
+   r200UpdateCliprects( rmesa );
 }
 
 
@@ -1649,12 +1685,27 @@ void r200UpdateViewportOffset( GLcontext *ctx )
 {
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    __DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
-   GLfloat xoffset = (GLfloat)dPriv->x;
-   GLfloat yoffset = (GLfloat)dPriv->y + dPriv->h;
    const GLfloat *v = ctx->Viewport._WindowMap.m;
+   GLint xoffset, yoffset;
 
-   GLfloat tx = v[MAT_TX] + xoffset;
-   GLfloat ty = (- v[MAT_TY]) + yoffset;
+   GLfloat tx = SUBPIXEL_X + v[MAT_TX];
+   GLfloat ty = SUBPIXEL_Y - v[MAT_TY];
+
+   /* Color offset may not point to the location left of or above
+    * current color buffer. In other situations it points to the top
+    * left corner of window's viewport, and will compensate for
+    * positive offests.
+    */
+   xoffset = dPriv->x + ctx->Viewport.X;
+   yoffset = dPriv->y + dPriv->h - ctx->Viewport.X - ctx->Viewport.Height;
+   if ( xoffset < 0.0 )
+      tx += (GLfloat) dPriv->x;
+   else
+      tx -= (GLfloat) ctx->Viewport.X - R200_DRAW_XBIAS( rmesa );
+   if ( yoffset < 0.0 )
+      ty += (GLfloat) (dPriv->y + dPriv->h);
+   else
+      ty += (GLfloat) ctx->Viewport.Height;
 
    if ( rmesa->hw.vpt.cmd[VPT_SE_VPORT_XOFFSET] != *(GLuint *)&tx ||
 	rmesa->hw.vpt.cmd[VPT_SE_VPORT_YOFFSET] != *(GLuint *)&ty )
@@ -1672,6 +1723,10 @@ void r200UpdateViewportOffset( GLcontext *ctx )
 
          m &= ~(R200_STIPPLE_X_OFFSET_MASK |
                 R200_STIPPLE_Y_OFFSET_MASK);
+
+         /* TODO: Following calculations are probably wrong when color
+          * offset points to the top left corner of viewport.
+          */
 
          /* add magic offsets, then invert */
          stx = 31 - ((rmesa->dri.drawable->x - 1) & R200_STIPPLE_COORD_MASK);
@@ -1691,6 +1746,37 @@ void r200UpdateViewportOffset( GLcontext *ctx )
    r200UpdateScissor( ctx );
 }
 
+void r200RecalcAndUpdateColor( r200ContextPtr rmesa )
+{
+   GLint  x, y, offset, pitch;
+   GLcontext *ctx = rmesa->glCtx;
+   __DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
+
+   /* Color offset may not point to the location left of or above
+    * current color buffer. In other situations it points to the topn n 
+    * left corner of window's viewport.
+    */
+   x = dPriv->x; 
+   if ( x < 0 ) x = 0 + ctx->Viewport.X;
+   y = (dPriv->y + dPriv->h) - (ctx->Viewport.Y + ctx->Viewport.Height);
+   if ( y < 0 ) y = 0;
+
+   pitch = rmesa->state.color.drawPitch;  
+   offset = rmesa->state.color.drawOffset;
+   offset += x * rmesa->r200Screen->cpp;
+   offset += y * pitch * rmesa->r200Screen->cpp;
+
+   rmesa->state.color.xbias = offset & ~R200_COLOROFFSET_MASK;
+   rmesa->state.color.xbias /= rmesa->r200Screen->cpp;
+   offset &= R200_COLOROFFSET_MASK;
+
+   rmesa->state.color.drawOffset3D = offset;
+   offset += rmesa->r200Screen->fbLocation; 
+
+   R200_STATECHANGE( rmesa, ctx );
+   rmesa->hw.ctx.cmd[CTX_RB3D_COLOROFFSET] = offset;
+   rmesa->hw.ctx.cmd[CTX_RB3D_COLORPITCH]  = pitch;
+}
 
 
 /* =============================================================
@@ -1757,6 +1843,7 @@ void r200SetCliprects( r200ContextPtr rmesa, GLenum mode )
    case GL_FRONT_LEFT:
       rmesa->numClipRects = dPriv->numClipRects;
       rmesa->pClipRects = dPriv->pClipRects;
+      rmesa->pClipRects3D = rmesa->pFrontClipRects3D;
       break;
    case GL_BACK_LEFT:
       /* Can't ignore 2d windows if we are page flipping.
@@ -1764,10 +1851,12 @@ void r200SetCliprects( r200ContextPtr rmesa, GLenum mode )
       if ( dPriv->numBackClipRects == 0 || rmesa->doPageFlip ) {
 	 rmesa->numClipRects = dPriv->numClipRects;
 	 rmesa->pClipRects = dPriv->pClipRects;
+	 rmesa->pClipRects3D = rmesa->pFrontClipRects3D;
       }
       else {
 	 rmesa->numClipRects = dPriv->numBackClipRects;
 	 rmesa->pClipRects = dPriv->pBackClipRects;
+	 rmesa->pClipRects3D = rmesa->pBackClipRects3D;
       }
       break;
    default:
@@ -1777,6 +1866,69 @@ void r200SetCliprects( r200ContextPtr rmesa, GLenum mode )
 
    if (rmesa->state.scissor.enabled)
       r200RecalcScissorRects( rmesa );
+}
+
+void r200UpdateCliprects( r200ContextPtr rmesa )
+{
+   __DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
+   GLuint nback = dPriv->numBackClipRects;
+   GLuint nfront = dPriv->numClipRects;
+   GLint xoffset, yoffset;
+
+   if ( rmesa->pFrontClipRects3D ) {
+      FREE( rmesa->pFrontClipRects3D );
+      rmesa->pFrontClipRects3D = NULL;
+   }
+   if ( rmesa->pBackClipRects3D ) {
+      FREE( rmesa->pBackClipRects3D );
+      rmesa->pBackClipRects3D = NULL;
+   }
+
+   /* Calculate cliprect offset basing on difference between topleft
+    * screen offset and offset used by 3D engine.
+    */
+   xoffset = R200_CLIP3D_XOFFSET( rmesa );
+   yoffset = R200_CLIP3D_YOFFSET( rmesa );
+
+   if ( nfront ) {
+      rmesa->pFrontClipRects3D = MALLOC( nfront * sizeof( drm_clip_rect_t ));
+
+      if ( rmesa->pFrontClipRects3D ) {
+         int i;
+         drm_clip_rect_t *src = dPriv->pClipRects;
+         drm_clip_rect_t *dest = rmesa->pFrontClipRects3D;
+
+         for ( i = 0; i < nfront; ++i, ++src, ++dest ) {
+            dest->x1 = src->x1 + xoffset;
+            dest->x2 = src->x2 + xoffset;
+            dest->y1 = src->y1 + yoffset;
+            dest->y2 = src->y2 + yoffset;
+         }
+
+         rmesa->numFrontClipRects3D = nfront;
+      } else
+         rmesa->numFrontClipRects3D = 0;
+   }
+
+   if ( nback ) {
+      rmesa->pBackClipRects3D = MALLOC( nback * sizeof( drm_clip_rect_t ));
+
+      if ( rmesa->pBackClipRects3D ) {
+         int i;
+         drm_clip_rect_t *src = dPriv->pBackClipRects;
+         drm_clip_rect_t *dest = rmesa->pBackClipRects3D;
+
+         for ( i = 0; i < nback; ++i, ++src, ++dest ) {
+            dest->x1 = src->x1 + xoffset;
+            dest->x2 = src->x2 + xoffset;
+            dest->y1 = src->y1 + yoffset;
+            dest->y2 = src->y2 + yoffset;
+         }
+
+         rmesa->numBackClipRects3D = nback;
+      } else
+         rmesa->numBackClipRects3D = 0;
+   }
 }
 
 
@@ -1812,12 +1964,7 @@ static void r200DrawBuffer( GLcontext *ctx, GLenum mode )
     * gets called.
     */
    _swrast_DrawBuffer(ctx, mode);
-
-   R200_STATECHANGE( rmesa, ctx );
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLOROFFSET] = ((rmesa->state.color.drawOffset +
-					       rmesa->r200Screen->fbLocation)
-					      & R200_COLOROFFSET_MASK);
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLORPITCH] = rmesa->state.color.drawPitch;
+   r200RecalcAndUpdateColor( rmesa );
 }
 
 

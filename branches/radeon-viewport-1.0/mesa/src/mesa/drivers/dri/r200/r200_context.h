@@ -96,7 +96,8 @@ typedef void (*r200_point_func)( r200ContextPtr,
 
 struct r200_colorbuffer_state {
    GLuint clear;
-   GLint drawOffset, drawPitch;
+   GLint drawOffset, drawOffset3D, drawPitch;
+   GLint xbias;
    int roundEnable;
 };
 
@@ -114,9 +115,9 @@ struct r200_scissor_state {
    drm_clip_rect_t rect;
    GLboolean enabled;
 
-   GLuint numClipRects;			/* Cliprects active */
+   GLuint numClipRects, numClipRects3D;	/* Cliprects active */
    GLuint numAllocedClipRects;		/* Cliprects available */
-   drm_clip_rect_t *pClipRects;
+   drm_clip_rect_t *pClipRects, *pClipRects3D;
 };
 
 struct r200_stencilbuffer_state {
@@ -881,7 +882,13 @@ struct r200_context {
    /* Drawable, cliprect and scissor information
     */
    GLuint numClipRects;			/* Cliprects for the draw buffer */
-   drm_clip_rect_t *pClipRects;
+   drm_clip_rect_t *pClipRects, *pClipRects3D;
+   /* Cliprects used by 3D engine. These must be offseted in order to
+    * compensate that drawOffset3D ponts to top left corner of viewport.
+    */
+   GLuint numFrontClipRects3D, numBackClipRects3D;
+   drm_clip_rect_t *pFrontClipRects3D, *pBackClipRects3D;
+
    unsigned int lastStamp;
    GLboolean lost_context;
    GLboolean save_on_next_emit;
@@ -936,6 +943,23 @@ struct r200_context {
 };
 
 #define R200_CONTEXT(ctx)		((r200ContextPtr)(ctx->DriverCtx))
+
+
+#define R200_DRAW_XBIAS( rmesa ) \
+   ( (rmesa)->state.color.xbias )
+
+#define R200_CLIP3D_XOFFSET( rmesa ) \
+   ( -( ( (rmesa)->state.color.drawOffset3D \
+          - (rmesa)->state.color.drawOffset ) \
+        / (rmesa)->r200Screen->cpp ) \
+      % (rmesa)->state.color.drawPitch )
+
+#define R200_CLIP3D_YOFFSET( rmesa ) \
+   ( -( ( (rmesa)->state.color.drawOffset3D \
+          - (rmesa)->state.color.drawOffset ) \
+        / (rmesa)->r200Screen->cpp ) \
+      / (rmesa)->state.color.drawPitch )
+
 
 
 static __inline GLuint r200PackColor( GLuint cpp,

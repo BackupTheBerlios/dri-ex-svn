@@ -556,9 +556,22 @@ void r200DestroyContext( __DRIcontextPrivate *driContextPriv )
       rmesa->glCtx->DriverCtx = NULL;
       _mesa_destroy_context( rmesa->glCtx );
 
+      if (rmesa->pFrontClipRects3D) {
+         FREE(rmesa->pFrontClipRects3D);
+         rmesa->pFrontClipRects3D = NULL;
+      }
+      if (rmesa->pBackClipRects3D) {
+         FREE(rmesa->pBackClipRects3D);
+         rmesa->pBackClipRects3D = NULL;
+      }
+
       if (rmesa->state.scissor.pClipRects) {
 	 FREE(rmesa->state.scissor.pClipRects);
 	 rmesa->state.scissor.pClipRects = 0;
+      }
+      if (rmesa->state.scissor.pClipRects3D) {
+	 FREE(rmesa->state.scissor.pClipRects3D);
+	 rmesa->state.scissor.pClipRects3D = NULL;
       }
 
       if ( release_texture_heaps ) {

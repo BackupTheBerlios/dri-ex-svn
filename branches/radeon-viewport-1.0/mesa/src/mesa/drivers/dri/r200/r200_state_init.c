@@ -492,6 +492,10 @@ void r200InitState( r200ContextPtr rmesa )
    else
       rmesa->hw.ctx.cmd[CTX_RB3D_CNTL] |= rmesa->state.color.roundEnable;
 
+   /* Note that offset will get recalculated later on, when context
+    * will be bound to a window. It will point to the top left corner
+    * of window's viewport.
+    */
    rmesa->hw.ctx.cmd[CTX_RB3D_COLOROFFSET] = ((rmesa->state.color.drawOffset +
 					       rmesa->r200Screen->fbLocation)
 					      & R200_COLOROFFSET_MASK);

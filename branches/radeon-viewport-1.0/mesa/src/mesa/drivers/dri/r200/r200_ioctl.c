@@ -138,10 +138,10 @@ int r200FlushCmdBufLocked( r200ContextPtr rmesa, const char * caller )
 
    if (rmesa->state.scissor.enabled) {
       cmd.nbox = rmesa->state.scissor.numClipRects;
-      cmd.boxes = (drm_clip_rect_t *)rmesa->state.scissor.pClipRects;
+      cmd.boxes = (drm_clip_rect_t *)rmesa->state.scissor.pClipRects3D;
    } else {
       cmd.nbox = rmesa->numClipRects;
-      cmd.boxes = (drm_clip_rect_t *)rmesa->pClipRects;
+      cmd.boxes = (drm_clip_rect_t *)rmesa->pClipRects3D;
    }
 
    ret = drmCommandWrite( rmesa->dri.fd,
@@ -564,10 +564,7 @@ void r200PageFlip( const __DRIdrawablePrivate *dPriv )
 	 rmesa->state.color.drawPitch  = rmesa->r200Screen->backPitch;
    }
 
-   R200_STATECHANGE( rmesa, ctx );
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLOROFFSET] = rmesa->state.color.drawOffset
-					   + rmesa->r200Screen->fbLocation;
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLORPITCH]  = rmesa->state.color.drawPitch;
+   r200RecalcAndUpdateColor( rmesa ); 
 }
 
 
@@ -579,6 +576,8 @@ static void r200Clear( GLcontext *ctx, GLbitfield mask, GLboolean all,
 {
    r200ContextPtr rmesa = R200_CONTEXT(ctx);
    __DRIdrawablePrivate *dPriv = rmesa->dri.drawable;
+   GLint xoffset = R200_CLIP3D_XOFFSET( rmesa );
+   GLint yoffset = R200_CLIP3D_YOFFSET( rmesa );
    GLuint flags = 0;
    GLuint color_mask = 0;
    GLint ret, i;
@@ -726,10 +725,10 @@ static void r200Clear( GLcontext *ctx, GLbitfield mask, GLboolean all,
       n--;
       b = rmesa->sarea->boxes;
       for ( ; n >= 0 ; n-- ) {
-	 depth_boxes[n].f[CLEAR_X1] = (float)b[n].x1;
-	 depth_boxes[n].f[CLEAR_Y1] = (float)b[n].y1;
-	 depth_boxes[n].f[CLEAR_X2] = (float)b[n].x2;
-	 depth_boxes[n].f[CLEAR_Y2] = (float)b[n].y2;
+	 depth_boxes[n].f[CLEAR_X1] = (float) ( b[n].x1 + xoffset );
+	 depth_boxes[n].f[CLEAR_Y1] = (float) ( b[n].y1 + yoffset );
+	 depth_boxes[n].f[CLEAR_X2] = (float) ( b[n].x2 + xoffset );
+	 depth_boxes[n].f[CLEAR_Y2] = (float) ( b[n].y2 + yoffset );
 	 depth_boxes[n].f[CLEAR_DEPTH] = ctx->Depth.Clear;
       }
 

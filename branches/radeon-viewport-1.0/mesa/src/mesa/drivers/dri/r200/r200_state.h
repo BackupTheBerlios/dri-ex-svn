@@ -47,9 +47,11 @@ extern void r200InitTnlFuncs( GLcontext *ctx );
 extern void r200UpdateMaterial( GLcontext *ctx );
 
 extern void r200SetCliprects( r200ContextPtr rmesa, GLenum mode );
+extern void r200UpdateCliprects( r200ContextPtr rmesa );
 extern void r200RecalcScissorRects( r200ContextPtr rmesa );
 extern void r200UpdateViewportOffset( GLcontext *ctx );
 extern void r200UpdateWindow( GLcontext *ctx );
+extern void r200RecalcAndUpdateColor( r200ContextPtr rmesa );
 
 extern void r200ValidateState( GLcontext *ctx );
 

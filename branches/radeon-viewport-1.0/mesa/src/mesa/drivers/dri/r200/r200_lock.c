@@ -63,11 +63,6 @@ r200UpdatePageFlipping( r200ContextPtr rmesa )
 	 rmesa->state.color.drawOffset = rmesa->r200Screen->frontOffset;
 	 rmesa->state.color.drawPitch  = rmesa->r200Screen->frontPitch;
    }
-
-   R200_STATECHANGE( rmesa, ctx );
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLOROFFSET] = rmesa->state.color.drawOffset
-					   + rmesa->r200Screen->fbLocation;
-   rmesa->hw.ctx.cmd[CTX_RB3D_COLORPITCH]  = rmesa->state.color.drawPitch;
 }
 
 
@@ -101,11 +96,14 @@ void r200GetLock( r200ContextPtr rmesa, GLuint flags )
 
    if ( rmesa->lastStamp != dPriv->lastStamp ) {
       r200UpdatePageFlipping( rmesa );
+      r200RecalcAndUpdateColor( rmesa );
+      r200UpdateCliprects( rmesa );
       if (rmesa->glCtx->Color._DrawDestMask[0] == DD_BACK_LEFT_BIT)
          r200SetCliprects( rmesa, GL_BACK_LEFT );
       else
          r200SetCliprects( rmesa, GL_FRONT_LEFT );
       r200UpdateViewportOffset( rmesa->glCtx );
+      r200EmitState( rmesa );
       rmesa->lastStamp = dPriv->lastStamp;
    }
 
