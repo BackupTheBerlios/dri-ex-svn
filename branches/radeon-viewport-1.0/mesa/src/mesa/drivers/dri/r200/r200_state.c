@@ -1719,19 +1719,19 @@ void r200UpdateViewportOffset( GLcontext *ctx )
       /* update polygon stipple x/y screen offset */
       {
          GLuint stx, sty;
+	 GLint xoffset, yoffset;
          GLuint m = rmesa->hw.msc.cmd[MSC_RE_MISC];
 
          m &= ~(R200_STIPPLE_X_OFFSET_MASK |
                 R200_STIPPLE_Y_OFFSET_MASK);
 
-         /* TODO: Following calculations are probably wrong when color
-          * offset points to the top left corner of viewport.
-          */
-
          /* add magic offsets, then invert */
-         stx = 31 - ((rmesa->dri.drawable->x - 1) & R200_STIPPLE_COORD_MASK);
-         sty = 31 - ((rmesa->dri.drawable->y + rmesa->dri.drawable->h - 1)
-                     & R200_STIPPLE_COORD_MASK);
+	 xoffset = R200_CLIP3D_XOFFSET( rmesa ) - ctx->Viewport.X;
+	 xoffset += rmesa->dri.drawable->x - 1;
+	 yoffset = R200_CLIP3D_YOFFSET( rmesa ) - ctx->Viewport.Y;
+	 yoffset += rmesa->dri.drawable->y + rmesa->dri.drawable->h - 1;
+         stx = 31 - ( xoffset & R200_STIPPLE_COORD_MASK );
+         sty = 31 - ( yoffset & R200_STIPPLE_COORD_MASK );
 
          m |= ((stx << R200_STIPPLE_X_OFFSET_SHIFT) |
                (sty << R200_STIPPLE_Y_OFFSET_SHIFT));
